@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบัญชีสวัสดิการ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- กำหนด Font ภาษาไทย (Prompt) -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', sans-serif; }
+        /* ซ่อน Scrollbar แต่ยังเลื่อนได้ */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-blue-800 text-white shadow-md sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+            <!-- จุดซ่อนเมนูแอดมิน: คลิก 3 ครั้งที่ชื่อระบบ -->
+            <h1 id="app-title" class="text-xl font-bold cursor-pointer select-none" onclick="handleSecretClick()">
+                📊 ระบบบัญชีสวัสดิการ
+            </h1>
+            <button id="btn-add-new" onclick="openAddModal()" class="hidden bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow text-sm font-medium transition">
+                + เพิ่มรายการ
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-4 py-6">
+        
+        <!-- Tabs -->
+        <div class="flex space-x-2 mb-6 border-b border-gray-200">
+            <button id="tab-center" onclick="switchTab('Welfare_Center')" class="px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition">
+                สวัสดิการกลาง
+            </button>
+            <button id="tab-general" onclick="switchTab('Welfare_General')" class="px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition">
+                สวัสดิการ สสอ.
+            </button>
+        </div>
+
+        <!-- Summary Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-6 mb-6 text-center">
+            <h2 class="text-gray-500 text-sm font-medium mb-1">ยอดเงินคงเหลือสุทธิ</h2>
+            <div id="display-balance" class="text-4xl font-bold text-blue-800">฿0.00</div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div class="overflow-x-auto no-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
+                            <th class="px-4 py-3 border-b">วันที่</th>
+                            <th class="px-4 py-3 border-b">รายการ</th>
+                            <th class="px-4 py-3 border-b text-right">รายรับ</th>
+                            <th class="px-4 py-3 border-b text-right">รายจ่าย</th>
+                            <th class="px-4 py-3 border-b text-right">คงเหลือ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="text-sm divide-y divide-gray-100">
+                        <!-- ข้อมูลจะถูกเติมด้วย JavaScript -->
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-400">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: ใส่รหัสผ่านแอดมิน -->
+    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 px-4">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
+            <h3 class="text-lg font-bold mb-4">เข้าสู่โหมดผู้ดูแลระบบ</h3>
+            <input type="password" id="admin-pin" placeholder="รหัส PIN 6 หลัก" class="w-full border rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-xl tracking-widest" maxlength="6">
+            <div class="flex justify-end space-x-2">
+                <button onclick="closePinModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">ยกเลิก</button>
+                <button onclick="verifyPin()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: เพิ่มข้อมูล -->
+    <div id="add-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 px-4">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 class="text-lg font-bold mb-4">บันทึกรายการใหม่</h3>
+            <p id="modal-sheet-name" class="text-sm text-blue-600 mb-4 font-medium"></p>
+            
+            <form id="add-form" onsubmit="submitData(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">วันที่</label>
+                    <input type="date" id="input-date" required class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
+                    <div class="flex space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="input-type" value="รายรับ" required class="mr-2 text-blue-600"> รายรับ
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="input-type" value="รายจ่าย" class="mr-2 text-red-600"> รายจ่าย
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+                    <input type="text" id="input-desc" required placeholder="เช่น ซื้อกาแฟ, รับเงินสมทบ" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label>
+                    <input type="number" id="input-amount" required min="0.01" step="0.01" placeholder="0.00" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeAddModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">ยกเลิก</button>
+                    <button type="submit" id="btn-submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center">
+                        <span id="submit-text">บันทึกข้อมูล</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center z-50 hidden">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p class="text-blue-800 font-medium">กำลังโหลดข้อมูล...</p>
+    </div>
+
+    <script>
+        // ==========================================
+        // 🚨 นำ Web App URL ที่ได้จากขั้นตอนที่ 2 มาใส่ตรงนี้ 🚨
+        // ==========================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbzV2M1BsUTGD895DrgL0nWKN2AbMdlSnCzZkUf4Htr7PC-kObQEFcjBUnkU3iSwO71MoA/exec"; 
+
+        // State ของแอป
+        let appData = { Welfare_Center: [], Welfare_General: [] };
+        let currentTab = 'Welfare_Center';
+        let secretClicks = 0;
+        let clickTimeout;
+        let savedPin = ''; // เก็บ PIN ไว้ชั่วคราวเมื่อปลดล็อกแล้ว
+
+        // ฟอร์แมตตัวเลขเงิน
+        const formatMoney = (amount) => {
+            return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount || 0);
+        };
+
+        // เริ่มต้นการทำงาน
+        window.onload = () => {
+            document.getElementById('input-date').valueAsDate = new Date(); // ตั้งค่าวันที่ปัจจุบันในฟอร์ม
+            if(API_URL !== "YOUR_WEB_APP_URL_HERE") {
+                fetchData();
+            } else {
+                document.getElementById('table-body').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500 font-bold">กรุณาใส่ API_URL ในโค้ดก่อนใช้งาน</td></tr>`;
+            }
+        };
+
+        // ดึงข้อมูลจาก GAS
+        async function fetchData() {
+            showLoading(true, "กำลังดึงข้อมูล...");
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    appData.Welfare_Center = result.data.center;
+                    appData.Welfare_General = result.data.general;
+                    renderTable();
+                } else {
+                    alert("เกิดข้อผิดพลาด: " + result.message);
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+            }
+            showLoading(false);
+        }
+
+        // สลับแท็บ
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // อัปเดต UI แท็บ
+            const tabCenter = document.getElementById('tab-center');
+            const tabGeneral = document.getElementById('tab-general');
+            
+            if (tabName === 'Welfare_Center') {
+                tabCenter.className = "px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
+                tabGeneral.className = "px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition";
+            } else {
+                tabGeneral.className = "px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
+                tabCenter.className = "px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition";
+            }
+            
+            renderTable();
+        }
+
+        // แสดงผลตาราง
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            const data = appData[currentTab];
+            tbody.innerHTML = '';
+
+            let latestBalance = 0;
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">ยังไม่มีข้อมูล</td></tr>`;
+            } else {
+                // วนลูปสร้างแถว (เรียงจากล่าสุดไปเก่าสุด)
+                [...data].reverse().forEach(row => {
+                    const income = parseFloat(row.Income) || 0;
+                    const expense = parseFloat(row.Expense) || 0;
+                    const balance = parseFloat(row.Balance) || 0;
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50";
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 border-b whitespace-nowrap">${row.Date}</td>
+                        <td class="px-4 py-3 border-b">${row.Description}</td>
+                        <td class="px-4 py-3 border-b text-right text-green-600 font-medium">${income > 0 ? formatMoney(income).replace('฿', '') : '-'}</td>
+                        <td class="px-4 py-3 border-b text-right text-red-600 font-medium">${expense > 0 ? formatMoney(expense).replace('฿', '') : '-'}</td>
+                        <td class="px-4 py-3 border-b text-right font-bold text-gray-700">${formatMoney(balance).replace('฿', '')}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // ยอดคงเหลือล่าสุดคือรายการสุดท้ายของอาร์เรย์เดิม
+                latestBalance = parseFloat(data[data.length - 1].Balance) || 0;
+            }
+
+            // อัปเดตยอดคงเหลือ
+            document.getElementById('display-balance').innerText = formatMoney(latestBalance);
+        }
+
+        // ระบบคลิกซ่อนแอดมิน (คลิก 3 ครั้งติดกันภายใน 1 วินาที)
+        function handleSecretClick() {
+            secretClicks++;
+            clearTimeout(clickTimeout);
+            
+            if (secretClicks >= 3) {
+                if(savedPin) {
+                    // ปลดล็อกแล้ว
+                    document.getElementById('btn-add-new').classList.remove('hidden');
+                } else {
+                    document.getElementById('pin-modal').classList.remove('hidden');
+                }
+                secretClicks = 0;
+            } else {
+                clickTimeout = setTimeout(() => { secretClicks = 0; }, 1000);
+            }
+        }
+
+        function closePinModal() {
+            document.getElementById('pin-modal').classList.add('hidden');
+            document.getElementById('admin-pin').value = '';
+        }
+
+        function verifyPin() {
+            const pin = document.getElementById('admin-pin').value;
+            if(pin.length >= 4) { // ไม่ได้เช็คถูกผิดตรงนี้ ไปเช็คที่ Backend
+                savedPin = pin;
+                closePinModal();
+                document.getElementById('btn-add-new').classList.remove('hidden');
+                // โชว์แจ้งเตือนเบาๆ
+                alert("ปลดล็อกโหมดเพิ่มข้อมูลแล้ว");
+            } else {
+                alert("กรุณาใส่รหัสผ่าน");
+            }
+        }
+
+        // จัดการ Modal เพิ่มข้อมูล
+        function openAddModal() {
+            document.getElementById('add-modal').classList.remove('hidden');
+            document.getElementById('modal-sheet-name').innerText = 
+                currentTab === 'Welfare_Center' ? "บันทึกลง: สวัสดิการกลาง" : "บันทึกลง: สวัสดิการทั่วไป";
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.add('hidden');
+            document.getElementById('add-form').reset();
+            document.getElementById('input-date').valueAsDate = new Date();
+        }
+
+        // ส่งข้อมูลไปบันทึก (POST)
+        async function submitData(event) {
+            event.preventDefault();
+            
+            if(!savedPin) {
+                alert("กรุณาเข้าสู่ระบบด้วย PIN ก่อน");
+                return;
+            }
+
+            const btnSubmit = document.getElementById('btn-submit');
+            const submitText = document.getElementById('submit-text');
+            
+            const payload = {
+                pin: savedPin,
+                sheetName: currentTab,
+                date: document.getElementById('input-date').value,
+                type: document.querySelector('input[name="input-type"]:checked').value,
+                description: document.getElementById('input-desc').value,
+                amount: document.getElementById('input-amount').value
+            };
+
+            // เปลี่ยนปุ่มเป็นสถานะโหลด
+            btnSubmit.disabled = true;
+            btnSubmit.classList.add('opacity-50', 'cursor-not-allowed');
+            submitText.innerText = "กำลังบันทึก...";
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' } // ใช้ text/plain เลี่ยง CORS Preflight
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    alert("บันทึกข้อมูลเรียบร้อยแล้ว!");
+                    closeAddModal();
+                    fetchData(); // ดึงข้อมูลใหม่มาแสดง
+                } else {
+                    alert("บันทึกไม่สำเร็จ: " + result.message);
+                    if(result.message.includes("รหัสผ่านไม่ถูกต้อง")) {
+                        savedPin = ''; // รีเซ็ตพินถ้าผิด
+                        document.getElementById('btn-add-new').classList.add('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error("Save error:", error);
+                alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+            } finally {
+                // คืนสถานะปุ่ม
+                btnSubmit.disabled = false;
+                btnSubmit.classList.remove('opacity-50', 'cursor-not-allowed');
+                submitText.innerText = "บันทึกข้อมูล";
+            }
+        }
+
+        // Overlay โหลดดิ้ง
+        function showLoading(show, text="กำลังประมวลผล...") {
+            const overlay = document.getElementById('loading-overlay');
+            if (show) {
+                overlay.querySelector('p').innerText = text;
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

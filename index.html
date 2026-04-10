@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบบัญชีเงินสวัสดิการ สสอ.โนนสะอาด</title>
+    <title>ระบบบัญชีสวัสดิการ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -18,7 +18,7 @@
     <nav class="bg-blue-800 text-white shadow-md sticky top-0 z-10">
         <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
             <h1 id="app-title" class="text-xl font-bold cursor-pointer select-none" onclick="handleSecretClick()">
-                📊 ระบบบัญชีเงินสวัสดิการ สสอ.โนนสะอาด
+                📊 ระบบบัญชีสวัสดิการ
             </h1>
             <button id="btn-add-new" onclick="openAddModal()" class="hidden bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow text-sm font-medium transition flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
@@ -30,13 +30,17 @@
     <!-- Main Content -->
     <main class="max-w-5xl mx-auto px-4 py-6 flex-grow w-full">
         
-        <!-- Tabs -->
-        <div class="flex space-x-2 mb-6 border-b border-gray-200">
+        <!-- Tabs (ปรับให้เลื่อนซ้ายขวาได้ในมือถือเผื่อปุ่มเกินจอ) -->
+        <div class="flex space-x-2 mb-6 border-b border-gray-200 overflow-x-auto no-scrollbar whitespace-nowrap">
             <button id="tab-center" onclick="switchTab('Welfare_Center')" class="px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition">
                 สวัสดิการกลาง
             </button>
             <button id="tab-general" onclick="switchTab('Welfare_General')" class="px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition">
-                สวัสดิการ สสอ.
+                สวัสดิการทั่วไป
+            </button>
+            <!-- แท็บที่เพิ่มมาใหม่ -->
+            <button id="tab-drugs" onclick="switchTab('Welfare_Drugs')" class="px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition">
+                สวัสดิการงบยาเสพติด
             </button>
         </div>
 
@@ -176,15 +180,15 @@
         // ==========================================
         // 🚨 นำ Web App URL ที่ได้จาก Apps Script มาใส่ตรงนี้ 🚨
         // ==========================================
-        const API_URL = "https://script.google.com/macros/s/AKfycbzV2M1BsUTGD895DrgL0nWKN2AbMdlSnCzZkUf4Htr7PC-kObQEFcjBUnkU3iSwO71MoA/exec"; 
+        const API_URL = "https://script.google.com/macros/s/AKfycbxtoMwHUrssvxVVU3pM2AkqFUBuc1dK8lE_4F8C6U9OBu8vGuxcVG9GhNAaKEoKJU-a7w/exec"; 
 
-        // State ของแอป
-        let appData = { Welfare_Center: [], Welfare_General: [] };
+        // State ของแอป (เพิ่ม Welfare_Drugs แล้ว)
+        let appData = { Welfare_Center: [], Welfare_General: [], Welfare_Drugs: [] };
         let currentTab = 'Welfare_Center';
         
         // State สำหรับ Search & Pagination
         let currentPage = 1;
-        const itemsPerPage = 15; // จำนวนรายการที่แสดงต่อหน้า
+        const itemsPerPage = 15;
         let searchQuery = '';
         let filterType = 'all';
 
@@ -198,18 +202,15 @@
             return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount || 0);
         };
 
-        // ฟอร์แมตวันที่เป็นแบบไทย (เช่น 25 มี.ค. 69)
+        // ฟอร์แมตวันที่แบบไทย
         const formatDateThai = (dateString) => {
             if (!dateString) return '';
-            // แปลง String เป็น Date object
             const d = new Date(dateString);
-            // ตรวจสอบว่าใช่วันที่ที่ถูกต้องหรือไม่ (ถ้าไม่ใช่ให้คืนค่าเดิมกลับไป)
             if (isNaN(d.getTime())) return dateString; 
             
             const day = d.getDate();
             const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
             const month = months[d.getMonth()];
-            // บวก 543 เป็นปี พ.ศ. แล้วตัดเอาเฉพาะ 2 ตัวท้าย
             const year = (d.getFullYear() + 543).toString().slice(-2);
             
             return `${day} ${month} ${year}`;
@@ -233,8 +234,10 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    appData.Welfare_Center = result.data.center;
-                    appData.Welfare_General = result.data.general;
+                    // จัดเก็บข้อมูลทั้ง 3 แท็บ
+                    appData.Welfare_Center = result.data.center || [];
+                    appData.Welfare_General = result.data.general || [];
+                    appData.Welfare_Drugs = result.data.drugs || [];
                     renderTable();
                 } else {
                     alert("เกิดข้อผิดพลาด: " + result.message);
@@ -250,24 +253,29 @@
         function switchTab(tabName) {
             currentTab = tabName;
             
-            // รีเซ็ตการค้นหาและหน้าเมื่อเปลี่ยนแท็บ
+            // รีเซ็ตการค้นหา
             currentPage = 1;
             searchQuery = '';
             filterType = 'all';
             document.getElementById('search-input').value = '';
             document.getElementById('filter-type').value = 'all';
             
-            // อัปเดต UI แท็บ
-            const tabCenter = document.getElementById('tab-center');
-            const tabGeneral = document.getElementById('tab-general');
-            
-            if (tabName === 'Welfare_Center') {
-                tabCenter.className = "px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
-                tabGeneral.className = "px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition";
-            } else {
-                tabGeneral.className = "px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
-                tabCenter.className = "px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition";
-            }
+            // อัปเดต UI ปุ่มแท็บ
+            const tabs = ['Welfare_Center', 'Welfare_General', 'Welfare_Drugs'];
+            const tabIds = { 
+                Welfare_Center: 'tab-center', 
+                Welfare_General: 'tab-general', 
+                Welfare_Drugs: 'tab-drugs' 
+            };
+
+            tabs.forEach(t => {
+                const btn = document.getElementById(tabIds[t]);
+                if (t === tabName) {
+                    btn.className = "px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none transition";
+                } else {
+                    btn.className = "px-4 py-2 font-medium text-gray-500 border-b-2 border-transparent hover:text-blue-600 focus:outline-none transition";
+                }
+            });
             
             renderTable();
         }
@@ -275,7 +283,7 @@
         // รับค่าจากการค้นหา
         function handleSearch(val) {
             searchQuery = val.toLowerCase().trim();
-            currentPage = 1; // กลับไปหน้าแรกเสมอเวลาค้นหา
+            currentPage = 1;
             renderTable();
         }
 
@@ -286,7 +294,6 @@
             renderTable();
         }
 
-        // เปลี่ยนหน้า Pagination
         function changePage(step) {
             currentPage += step;
             renderTable();
@@ -295,10 +302,9 @@
         // ประมวลผลและแสดงผลตาราง
         function renderTable() {
             const tbody = document.getElementById('table-body');
-            const rawData = appData[currentTab];
+            const rawData = appData[currentTab] || [];
             tbody.innerHTML = '';
 
-            // 1. ดึงยอดคงเหลือล่าสุดจากข้อมูลดิบทั้งหมด (ก่อนกรอง) เพื่อแสดงที่ Summary Card
             let latestBalance = 0;
             if (rawData.length > 0) {
                 latestBalance = parseFloat(rawData[rawData.length - 1].Balance) || 0;
@@ -311,15 +317,12 @@
                 return;
             }
 
-            // 2. จัดเรียงข้อมูล (เอาล่าสุดขึ้นก่อน)
             let processedData = [...rawData].reverse();
 
-            // 3. กรองประเภท (รายรับ/รายจ่าย)
             if (filterType !== 'all') {
                 processedData = processedData.filter(row => row.Type === filterType);
             }
 
-            // 4. ค้นหาข้อความ (ในรายละเอียด หรือ วันที่)
             if (searchQuery) {
                 processedData = processedData.filter(row => 
                     row.Description.toLowerCase().includes(searchQuery) ||
@@ -327,7 +330,6 @@
                 );
             }
 
-            // 5. คำนวณแบ่งหน้า (Pagination)
             const totalItems = processedData.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
             
@@ -337,10 +339,8 @@
             const startIndex = (currentPage - 1) * itemsPerPage;
             const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
             
-            // ข้อมูลที่จะนำมาสร้าง HTML ในหน้านี้
             const paginatedData = processedData.slice(startIndex, endIndex);
 
-            // 6. สร้าง HTML
             if (paginatedData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">ไม่พบข้อมูลที่ค้นหา</td></tr>`;
             } else {
@@ -362,11 +362,9 @@
                 });
             }
 
-            // อัปเดตข้อมูลหน้า Pagination
             updatePaginationUI(totalItems, totalPages, startIndex, endIndex);
         }
 
-        // อัปเดตตัวเลขและปุ่มในส่วน Pagination
         function updatePaginationUI(totalItems, totalPages, startIndex = 0, endIndex = 0) {
             const btnPrev = document.getElementById('btn-prev');
             const btnNext = document.getElementById('btn-next');
@@ -390,17 +388,15 @@
             btnNext.disabled = currentPage === totalPages;
         }
 
-        // ระบบคลิกซ่อนแอดมิน
+        // ซ่อนเมนู
         function handleSecretClick() {
             secretClicks++;
             clearTimeout(clickTimeout);
-            
             if (secretClicks >= 3) {
                 if(savedPin) {
                     document.getElementById('btn-add-new').classList.remove('hidden');
                 } else {
                     document.getElementById('pin-modal').classList.remove('hidden');
-                    // Focus ทันทีที่เปิด
                     setTimeout(() => document.getElementById('admin-pin').focus(), 100);
                 }
                 secretClicks = 0;
@@ -425,16 +421,21 @@
             }
         }
 
-        // รองรับการกด Enter ในหน้ากรอกรหัส
         document.getElementById('admin-pin').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') verifyPin();
         });
 
-        // จัดการ Modal เพิ่มข้อมูล
+        // Modal เพิ่มข้อมูล
         function openAddModal() {
             document.getElementById('add-modal').classList.remove('hidden');
-            document.getElementById('modal-sheet-name').innerText = 
-                currentTab === 'Welfare_Center' ? "แฟ้ม: สวัสดิการกลาง" : "แฟ้ม: สวัสดิการทั่วไป";
+            
+            // ตั้งชื่อแฟ้มตอนกำลังจะบันทึก
+            const sheetNamesTH = {
+                'Welfare_Center': "แฟ้ม: สวัสดิการกลาง",
+                'Welfare_General': "แฟ้ม: สวัสดิการทั่วไป",
+                'Welfare_Drugs': "แฟ้ม: สวัสดิการงบยาเสพติด"
+            };
+            document.getElementById('modal-sheet-name').innerText = sheetNamesTH[currentTab];
         }
 
         function closeAddModal() {
@@ -443,7 +444,6 @@
             document.getElementById('input-date').valueAsDate = new Date();
         }
 
-        // ส่งข้อมูลไปบันทึก (POST)
         async function submitData(event) {
             event.preventDefault();
             
@@ -457,7 +457,7 @@
             
             const payload = {
                 pin: savedPin,
-                sheetName: currentTab,
+                sheetName: currentTab, // ระบบจะส่งชื่อแท็บปัจจุบันไปให้ Apps Script
                 date: document.getElementById('input-date').value,
                 type: document.querySelector('input[name="input-type"]:checked').value,
                 description: document.getElementById('input-desc').value,
@@ -478,7 +478,6 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    // ให้โหลดข้อมูลใหม่ และกลับไปหน้าแรกเพื่อดูรายการล่าสุด
                     closeAddModal();
                     currentPage = 1; 
                     searchQuery = '';
@@ -487,7 +486,6 @@
                     document.getElementById('filter-type').value = 'all';
                     await fetchData(); 
                     
-                    // แจ้งเตือนแบบ Custom เล็กๆ (ถ้าไม่อยากให้บล็อกหน้าจอ)
                     alert("บันทึกข้อมูลเรียบร้อยแล้ว!");
                 } else {
                     alert("บันทึกไม่สำเร็จ: " + result.message);
@@ -506,7 +504,6 @@
             }
         }
 
-        // Overlay โหลดดิ้ง
         function showLoading(show, text="กำลังประมวลผล...") {
             const overlay = document.getElementById('loading-overlay');
             if (show) {
